@@ -1,0 +1,38 @@
+# Render Blueprint for the Express API in ./server
+services:
+  - type: web
+    name: taskflow-3
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: CORS_ORIGIN
+        value: https://taskforage.netlify.app
+      - key: CLIENT_URL
+        value: https://taskforage.netlify.app
+      - key: REMINDER_INTERVAL_MINUTES
+        value: "15"
+      # Secrets: enter these in the Render dashboard (never commit them).
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: EMAIL_USER
+        sync: false
+      - key: EMAIL_PASS
+        sync: false
+      - key: EMAIL_HOST
+        sync: false
+      - key: EMAIL_PORT
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: CRON_SECRET
+        sync: false

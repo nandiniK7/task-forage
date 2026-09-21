@@ -1,0 +1,22 @@
+# Netlify: React + Vite single-page app in ./client
+[build]
+  base = "client"
+  command = "npm run build"
+  publish = "dist"
+
+# The API URL is not a secret. It is set here so the production bundle can never fall back to localhost,
+# even if the variable is missing in the Netlify dashboard (a dashboard value overrides this one).
+[build.environment]
+  VITE_API_URL = "https://taskflow-3-b4t9.onrender.com/api"
+  NODE_VERSION = "22"
+
+# Single-page-app routing: every path (/tasks, /calendar, /tasks/<id>, ...) is served by index.html.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

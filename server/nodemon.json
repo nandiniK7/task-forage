@@ -1,0 +1,7 @@
+{
+  "watch": [".", ".env"],
+  "ext": "js,mjs,cjs,json",
+  "ignore": ["node_modules", "node_modules/**", "tests", "*.test.js", "**/*.log"],
+  "delay": 500,
+  "exec": "node server.js"
+}
