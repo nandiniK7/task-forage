@@ -4,7 +4,7 @@ const TOKEN_KEY = "taskforage.token";
 
 // The deployed API. VITE_API_URL always wins; this is only the last-resort default for production
 // builds, so a missing variable can never make a deployed site call localhost.
-const PRODUCTION_API_URL = "https://taskflow-3-b4t9.onrender.com/api";
+const PRODUCTION_API_URL = "https://task-forage.onrender.com/api";
 const DEV_API_URL = "http://localhost:5000/api";
 
 const resolveBaseUrl = () => {

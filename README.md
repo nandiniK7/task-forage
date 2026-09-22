@@ -92,7 +92,7 @@ Never commit real values. Only the `*.example` files are committed.
 | --- | --- | --- |
 | `MONGO_URI` | yes | MongoDB connection string |
 | `JWT_SECRET` | yes | Long random string (24+ characters in production) |
-| `CORS_ORIGIN` | yes in production | Comma-separated allowed frontend origins, e.g. `https://taskforage.netlify.app` |
+| `CORS_ORIGIN` | yes in production | Comma-separated allowed frontend origins, e.g. `https://taskforageapp.netlify.app` |
 | `PORT` | no | Defaults to 5000 (Render sets it) |
 | `NODE_ENV` | no | Set to `production` on Render |
 | `MONGO_DB_NAME` | no | Database name, default `taskflow` |
@@ -109,7 +109,7 @@ If email is not configured the app works normally and email sending is skipped w
 
 | Variable | Description |
 | --- | --- |
-| `VITE_API_URL` | API base URL including `/api`, e.g. `https://taskflow-3-b4t9.onrender.com/api` |
+| `VITE_API_URL` | API base URL including `/api`, e.g. `https://task-forage.onrender.com/api` |
 
 ## API overview
 
@@ -132,13 +132,13 @@ Permissions: the **owner** (creator) can do everything including sharing and del
 ### Backend on Render
 
 1. Create a **Web Service** from the repository (or use the `render.yaml` blueprint). Root directory `server`, build command `npm ci`, start command `npm start`, health check path `/api/health`.
-2. Set the environment variables above. At minimum `MONGO_URI`, `JWT_SECRET`, `CORS_ORIGIN=https://taskforage.netlify.app`, and `NODE_ENV=production`.
+2. Set the environment variables above. At minimum `MONGO_URI`, `JWT_SECRET`, `CORS_ORIGIN=https://taskforageapp.netlify.app`, and `NODE_ENV=production`.
 3. In MongoDB Atlas, allow Render's outbound IPs in Network Access.
 4. Note: free Render instances sleep when idle (the first request can take up to a minute) and block outbound SMTP on the standard ports. For reliable email use a provider that offers an alternative SMTP port (for example port 2525) via `EMAIL_HOST` / `EMAIL_PORT`, and to keep deadline reminders running while the service sleeps, call `POST /api/internal/reminders` with the `x-cron-secret` header from a scheduler.
 
 ### Frontend on Netlify
 
-1. Import the repository. `netlify.toml` already sets base directory `client`, build command `npm run build`, publish directory `dist`, the SPA fallback (`/* → /index.html`) and `VITE_API_URL=https://taskflow-3-b4t9.onrender.com/api`.
+1. Import the repository. `netlify.toml` already sets base directory `client`, build command `npm run build`, publish directory `dist`, the SPA fallback (`/* → /index.html`) and `VITE_API_URL=https://task-forage.onrender.com/api`.
 2. Deploy. Make sure the deployed Netlify URL is listed in the backend's `CORS_ORIGIN`.
 
 ### CORS

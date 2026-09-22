@@ -7,7 +7,7 @@ import net from "node:net";
 import mongoose from "mongoose";
 
 const MONGO = process.env.TEST_MONGO_URI;
-const FRONTEND = "https://taskforage.netlify.app";
+const FRONTEND = "https://taskforageapp.netlify.app";
 
 if (!MONGO) {
   test("integration tests skipped", { skip: "Set TEST_MONGO_URI to run them" }, () => {});

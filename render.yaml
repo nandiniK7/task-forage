@@ -1,7 +1,7 @@
 # Render Blueprint for the Express API in ./server
 services:
   - type: web
-    name: taskflow-3
+    name: task-forage
     runtime: node
     rootDir: server
     plan: free
@@ -14,9 +14,9 @@ services:
       - key: NODE_ENV
         value: production
       - key: CORS_ORIGIN
-        value: https://taskforage.netlify.app
+        value: https://taskforageapp.netlify.app
       - key: CLIENT_URL
-        value: https://taskforage.netlify.app
+        value: https://taskforageapp.netlify.app
       - key: REMINDER_INTERVAL_MINUTES
         value: "15"
       # Secrets: enter these in the Render dashboard (never commit them).

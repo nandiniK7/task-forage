@@ -42,7 +42,7 @@ for (const [key, value] of Object.entries(fileVariables ?? {})) {
   if (process.env[key] === undefined || process.env[key] === "") process.env[key] = value;
 }
 
-const DEFAULT_FRONTEND_ORIGIN = "https://taskforage.netlify.app";
+const DEFAULT_FRONTEND_ORIGIN = "https://taskforageapp.netlify.app";
 
 const clean = (value = "") => String(value).trim().replace(/^["']|["']$/g, "");
 
