@@ -2,6 +2,13 @@
 
 TaskForage is a full-stack task management app for creating, assigning, sharing, discussing and tracking work. Tasks carry deadlines, priorities and statuses, can be assigned to any registered user, shared with view or edit permission, discussed in threaded comments, and backed by file attachments. A dashboard and a calendar show progress and deadlines, and email notifications keep people informed.
 
+## Live demo
+
+- App: https://taskforageapp.netlify.app
+- Demo login — email: `demo@taskforage.com`, password: `Demo@1234`
+
+(Registration is also open — any evaluator can create a new account instead.)
+
 ## Features
 
 - **Authentication** – register, login, logout, JWT-protected API and routes, expired-session handling
