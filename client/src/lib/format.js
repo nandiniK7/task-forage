@@ -84,3 +84,11 @@ export const sameDay = (a, b) =>
   a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
 
 export const personName = (user, fallback = "Deleted user") => user?.name || user?.email || fallback;
+
+/** Compact "assigned to" summary for a list of users (a task can be assigned to a team). */
+export const assigneeNames = (users, fallback = "Unassigned") => {
+  const list = users ?? [];
+  if (!list.length) return fallback;
+  if (list.length <= 2) return list.map((user) => personName(user)).join(", ");
+  return `${personName(list[0])} +${list.length - 1} more`;
+};

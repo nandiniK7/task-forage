@@ -38,7 +38,8 @@ const taskSchema = new mongoose.Schema(
     reminderBefore: { type: Number, default: DEFAULT_REMINDER_HOURS, min: 0 },
     reminderSentAt: { type: Date, default: null },
     createdBy: { type: ObjectId, ref: "User", required: true },
-    assignedTo: { type: ObjectId, ref: "User", default: null },
+    // A task can be assigned to any number of people at once (a "team"), not just one.
+    assignedTo: { type: [{ type: ObjectId, ref: "User" }], default: [] },
     assignedBy: { type: ObjectId, ref: "User", default: null },
     sharedWith: { type: [shareSchema], default: [] },
     attachments: { type: [attachmentSchema], default: [] },

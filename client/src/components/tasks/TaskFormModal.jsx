@@ -17,15 +17,24 @@ const initialValues = (task, defaults, me) => ({
   status: task?.status ?? "Pending",
   category: task?.category ?? defaults.category ?? "Work",
   reminderBefore: task?.reminderBefore ?? 24,
-  assignedTo: task ? task.assignedTo : (defaults.assignedTo ?? { _id: me._id, name: me.name, email: me.email }),
+  assignedTo: task ? (task.assignedTo ?? []) : (defaults.assignedTo ?? [{ _id: me._id, name: me.name, email: me.email }]),
 });
 
-const validate = (values) => {
+const validate = (values, task) => {
   const errors = {};
   if (!values.title.trim()) errors.title = "Title is required.";
   else if (values.title.trim().length > 150) errors.title = "Title must be 150 characters or fewer.";
   if (values.description.length > 5000) errors.description = "Description must be 5000 characters or fewer.";
-  if (values.deadline && Number.isNaN(new Date(values.deadline).getTime())) errors.deadline = "Enter a valid date and time.";
+  if (values.deadline) {
+    const date = new Date(values.deadline);
+    if (Number.isNaN(date.getTime())) errors.deadline = "Enter a valid date and time.";
+    else {
+      // Only block the past when the deadline actually changed, so editing an already-overdue task stays possible.
+      const original = task?.deadline ? new Date(task.deadline).getTime() : null;
+      const changed = original === null || original !== date.getTime();
+      if (changed && date.getTime() < Date.now() - 60_000) errors.deadline = "Deadline cannot be in the past.";
+    }
+  }
   return errors;
 };
 
@@ -34,6 +43,8 @@ export default function TaskFormModal({ task = null, defaults = {}, onClose, onS
   const { user } = useAuth();
   const toast = useToast();
   const [values, setValues] = useState(() => initialValues(task, defaults, user));
+  // Floors the picker at "now" for a new deadline, without blocking an already-overdue task's existing date.
+  const [minDeadline] = useState(() => (task?.deadline && new Date(task.deadline) < new Date() ? undefined : toDateTimeLocal(new Date())));
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -47,7 +58,7 @@ export default function TaskFormModal({ task = null, defaults = {}, onClose, onS
 
   const submit = async (event) => {
     event.preventDefault();
-    const found = validate(values);
+    const found = validate(values, task);
     if (Object.keys(found).length) { setErrors(found); return; }
 
     const payload = {
@@ -58,7 +69,7 @@ export default function TaskFormModal({ task = null, defaults = {}, onClose, onS
       status: values.status,
       category: values.category,
       reminderBefore: Number(values.reminderBefore),
-      assignedTo: values.assignedTo?._id ?? null,
+      assignedTo: (values.assignedTo ?? []).map((user) => user._id),
     };
 
     setSaving(true);
@@ -106,7 +117,7 @@ export default function TaskFormModal({ task = null, defaults = {}, onClose, onS
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Deadline" htmlFor="task-deadline" error={errors.deadline} hint="Shown in your local time zone.">
-            <input id="task-deadline" type="datetime-local" className={`field ${errors.deadline ? "field-error" : ""}`} value={values.deadline} onChange={set("deadline")} />
+            <input id="task-deadline" type="datetime-local" min={minDeadline} className={`field ${errors.deadline ? "field-error" : ""}`} value={values.deadline} onChange={set("deadline")} />
           </Field>
           <Field label="Reminder email" htmlFor="task-reminder" error={errors.reminderBefore} hint={values.deadline ? undefined : "Set a deadline to enable reminders."}>
             <select id="task-reminder" className="field" value={values.reminderBefore} onChange={set("reminderBefore")} disabled={!values.deadline}>
@@ -127,8 +138,8 @@ export default function TaskFormModal({ task = null, defaults = {}, onClose, onS
           </Field>
         </div>
 
-        <Field label="Assigned to" htmlFor="task-assignee" error={errors.assignedTo} hint="Assign the task to yourself or any registered user.">
-          <UserSelect id="task-assignee" value={values.assignedTo} onChange={set("assignedTo")} allowUnassigned invalid={Boolean(errors.assignedTo)} />
+        <Field label="Assigned to" htmlFor="task-assignee" error={errors.assignedTo} hint="Assign to yourself or any number of teammates — add as many as the task needs.">
+          <UserSelect id="task-assignee" value={values.assignedTo} onChange={set("assignedTo")} multiple placeholder="Unassigned" invalid={Boolean(errors.assignedTo)} />
         </Field>
       </form>
     </Modal>

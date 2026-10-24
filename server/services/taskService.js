@@ -44,9 +44,9 @@ export const presentTask = async (taskId, viewerId) => {
   return { populated, dto: toTaskDto(populated, viewerId, { commentCount: await commentCountFor(taskId) }) };
 };
 
-/** Everyone involved with a task: owner, assignee and users it is shared with. */
+/** Everyone involved with a task: owner, assignees and users it is shared with. */
 export const involvedUsers = (populatedTask) => [
   populatedTask.createdBy,
-  populatedTask.assignedTo,
+  ...(populatedTask.assignedTo ?? []),
   ...populatedTask.sharedWith.map((share) => share.user),
 ].filter(Boolean);

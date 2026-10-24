@@ -199,24 +199,24 @@ export const getTask = async (req, res) => {
 export const createTask = async (req, res) => {
   const data = validateTaskInput(req.body);
 
-  // Omitted assignee means "assign to me"; an explicit null means unassigned.
-  const assigneeId = data.assignedTo === undefined ? req.user._id : data.assignedTo;
-  const assignee = assigneeId ? await User.findById(assigneeId) : null;
-  if (assigneeId && !assignee) {
-    throw ApiError.badRequest("The selected user does not exist.", { errors: { assignedTo: "The selected user does not exist." } });
+  // Omitted assignee means "assign to me"; an explicit empty list means unassigned.
+  const assigneeIds = data.assignedTo === undefined ? [req.user._id] : data.assignedTo;
+  const assignees = assigneeIds.length ? await User.find({ _id: { $in: assigneeIds } }) : [];
+  if (assigneeIds.length && assignees.length !== assigneeIds.length) {
+    throw ApiError.badRequest("One or more selected users do not exist.", { errors: { assignedTo: "One or more selected users do not exist." } });
   }
 
   const task = await Task.create({
     ...data,
-    assignedTo: assignee?._id ?? null,
-    assignedBy: assignee ? req.user._id : null,
+    assignedTo: assignees.map((user) => user._id),
+    assignedBy: assignees.length ? req.user._id : null,
     createdBy: req.user._id,
   });
 
   const { populated, dto } = await presentTask(task._id, req.user._id);
 
   // The task is already saved; email is queued separately and can never fail this request.
-  if (assignee) taskAssignedEmail({ task: populated, actor: req.user, recipients: [populated.assignedTo] });
+  if (assignees.length) taskAssignedEmail({ task: populated, actor: req.user, recipients: populated.assignedTo });
 
   res.status(201).json({ success: true, message: "Task created.", task: dto });
 };
@@ -225,22 +225,28 @@ const sameDate = (a, b) => (a ? +new Date(a) : null) === (b ? +new Date(b) : nul
 
 export const updateTask = async (req, res) => {
   const { task } = await loadTask(req.params.id, req.user, "edit");
-  const data = validateTaskInput(req.body, { partial: true });
+  const data = validateTaskInput(req.body, { partial: true, previousDeadline: task.deadline });
   if (!Object.keys(data).length) throw ApiError.badRequest("Nothing to update.");
 
   const previousStatus = task.status;
   const changes = [];
-  let newAssigneeId = null;
+  let newlyAssignedIds = [];
 
   if ("assignedTo" in data) {
-    const nextId = data.assignedTo;
-    if (nextId && !(await User.exists({ _id: nextId }))) {
-      throw ApiError.badRequest("The selected user does not exist.", { errors: { assignedTo: "The selected user does not exist." } });
+    const nextIds = data.assignedTo;
+    if (nextIds.length) {
+      const found = await User.find({ _id: { $in: nextIds } }).select("_id");
+      if (found.length !== nextIds.length) {
+        throw ApiError.badRequest("One or more selected users do not exist.", { errors: { assignedTo: "One or more selected users do not exist." } });
+      }
     }
-    if (String(nextId ?? "") !== String(task.assignedTo ?? "")) {
-      task.assignedTo = nextId;
-      task.assignedBy = req.user._id;
-      newAssigneeId = nextId;
+    const previousIds = (task.assignedTo ?? []).map(String);
+    const changed = previousIds.length !== nextIds.length || !previousIds.every((id) => nextIds.map(String).includes(id));
+    if (changed) {
+      const previousSet = new Set(previousIds);
+      newlyAssignedIds = nextIds.map(String).filter((id) => !previousSet.has(id));
+      task.assignedTo = nextIds;
+      task.assignedBy = nextIds.length ? req.user._id : null;
     }
     delete data.assignedTo;
   }
@@ -262,9 +268,10 @@ export const updateTask = async (req, res) => {
   const { populated, dto } = await presentTask(task._id, req.user._id);
 
   let recipients = involvedUsers(populated);
-  if (newAssigneeId) {
-    taskAssignedEmail({ task: populated, actor: req.user, recipients: [populated.assignedTo] });
-    recipients = recipients.filter((user) => String(user._id) !== String(newAssigneeId));
+  if (newlyAssignedIds.length) {
+    const newlyAssignedUsers = populated.assignedTo.filter((user) => newlyAssignedIds.includes(String(user._id)));
+    taskAssignedEmail({ task: populated, actor: req.user, recipients: newlyAssignedUsers });
+    recipients = recipients.filter((user) => !newlyAssignedIds.includes(String(user._id)));
   }
   if (previousStatus !== populated.status) {
     taskStatusChangedEmail({ task: populated, actor: req.user, from: previousStatus, recipients });

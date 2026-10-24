@@ -25,7 +25,7 @@ export const runReminderCheck = async (now = new Date()) => {
       .populate("createdBy", "name email emailNotifications")
       .populate("assignedTo", "name email emailNotifications");
     if (!task) continue;
-    deadlineReminderEmail({ task, recipients: [task.assignedTo, task.createdBy] });
+    deadlineReminderEmail({ task, recipients: [...(task.assignedTo ?? []), task.createdBy] });
     reminded += 1;
   }
   return reminded;

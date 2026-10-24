@@ -102,3 +102,14 @@ export const deadlineReminderEmail = ({ task, recipients }) =>
     intro: `This task is due <strong>${escapeHtml(formatDate(task.deadline))}</strong>.`,
     task,
   });
+
+/** Sent on its own (no task layout); failures are logged only, same as every other notification. */
+export const passwordResetEmail = ({ user, resetLink }) => {
+  const html = `<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:auto;color:#0f172a">
+    <h2 style="margin:0 0 4px">Reset your password</h2>
+    <p style="margin:0 0 16px;color:#334155">We received a request to reset the password for your TaskForage account (${escapeHtml(user.email)}). This link expires in 1 hour.</p>
+    <p><a href="${escapeHtml(resetLink)}" style="background:#4f46e5;color:#fff;padding:10px 16px;border-radius:6px;text-decoration:none">Reset password</a></p>
+    <p style="color:#94a3b8;font-size:12px">If you did not request this, you can safely ignore this email — your password will not change.</p>
+  </div>`;
+  return sendEmail({ to: user.email, subject: "Reset your TaskForage password", html });
+};

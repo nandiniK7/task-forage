@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Link, Navigate, useLocation } from "react-router-dom";
+import { Link, Navigate, useLocation, useParams } from "react-router-dom";
 import { CheckSquare } from "lucide-react";
 import { useAuth, useSlowHint } from "../hooks/hooks";
+import { authApi } from "../api/services";
 import { getErrorMessage, getFieldErrors } from "../api/client";
 import { Alert, Button, Field } from "../components/ui/primitives";
 
@@ -84,7 +85,12 @@ export function Login() {
         <Field label="Email" htmlFor="email" error={form.errors.email}>
           <input id="email" name="email" type="email" autoComplete="email" autoFocus className={`field ${form.errors.email ? "field-error" : ""}`} value={form.values.email} onChange={form.set("email")} />
         </Field>
-        <Field label="Password" htmlFor="password" error={form.errors.password}>
+        <Field
+          label="Password"
+          htmlFor="password"
+          error={form.errors.password}
+          labelExtra={<Link to="/forgot-password" className="text-xs font-semibold text-brand-700 hover:underline">Forgot password?</Link>}
+        >
           <input id="password" name="password" type="password" autoComplete="current-password" className={`field ${form.errors.password ? "field-error" : ""}`} value={form.values.password} onChange={form.set("password")} />
         </Field>
         <Button type="submit" className="w-full" loading={form.busy}>{form.busy ? "Signing in…" : "Sign in"}</Button>
@@ -128,6 +134,70 @@ export function Register() {
         </Field>
         <Button type="submit" className="w-full" loading={form.busy}>{form.busy ? "Creating account…" : "Create account"}</Button>
         {form.slow && <Alert tone="info">The server is waking up after being idle. This can take up to a minute the first time.</Alert>}
+      </form>
+    </AuthShell>
+  );
+}
+
+export function ForgotPassword() {
+  const { user } = useAuth();
+  const destination = useDestination();
+  const [submitted, setSubmitted] = useState(false);
+  const form = useAuthForm(
+    { email: "" },
+    (v) => (!v.email.trim() ? { email: "Email is required." } : !EMAIL_PATTERN.test(v.email.trim()) ? { email: "Enter a valid email address." } : {}),
+    async (v) => { await authApi.forgotPassword(v.email.trim()); setSubmitted(true); }
+  );
+
+  if (user) return <Navigate to={destination} replace />;
+
+  if (submitted) {
+    return (
+      <AuthShell title="Check your email" subtitle="If an account exists for that address, we've sent a link to reset your password. It expires in 1 hour." footer={<Link to="/login" className="font-semibold text-brand-700 hover:underline">Back to sign in</Link>}>
+        <p className="text-sm text-slate-600">Didn't get it? Check spam, or <button type="button" className="font-semibold text-brand-700 hover:underline" onClick={() => setSubmitted(false)}>try again</button>.</p>
+      </AuthShell>
+    );
+  }
+
+  return (
+    <AuthShell title="Forgot your password?" subtitle="Enter your email and we'll send you a link to reset it." footer={<>Remembered it? <Link to="/login" className="font-semibold text-brand-700 hover:underline">Sign in</Link></>}>
+      <form onSubmit={form.submit} noValidate className="space-y-4">
+        {form.formError && <Alert>{form.formError}</Alert>}
+        <Field label="Email" htmlFor="email" error={form.errors.email}>
+          <input id="email" name="email" type="email" autoComplete="email" autoFocus className={`field ${form.errors.email ? "field-error" : ""}`} value={form.values.email} onChange={form.set("email")} />
+        </Field>
+        <Button type="submit" className="w-full" loading={form.busy}>{form.busy ? "Sending…" : "Send reset link"}</Button>
+      </form>
+    </AuthShell>
+  );
+}
+
+export function ResetPassword() {
+  const { token } = useParams();
+  const { user, resetPassword } = useAuth();
+  const destination = useDestination();
+  const form = useAuthForm(
+    { password: "", confirm: "" },
+    (v) => ({
+      ...(v.password.length < 8 ? { password: "Password must be at least 8 characters." } : {}),
+      ...(v.confirm !== v.password ? { confirm: "Passwords do not match." } : {}),
+    }),
+    (v) => resetPassword({ token, password: v.password })
+  );
+
+  if (user) return <Navigate to={destination} replace />;
+
+  return (
+    <AuthShell title="Choose a new password" subtitle="Enter a new password for your account." footer={<>Remembered it? <Link to="/login" className="font-semibold text-brand-700 hover:underline">Sign in</Link></>}>
+      <form onSubmit={form.submit} noValidate className="space-y-4">
+        {form.formError && <Alert>{form.formError}</Alert>}
+        <Field label="New password" htmlFor="password" error={form.errors.password} hint="At least 8 characters.">
+          <input id="password" name="password" type="password" autoComplete="new-password" autoFocus className={`field ${form.errors.password ? "field-error" : ""}`} value={form.values.password} onChange={form.set("password")} />
+        </Field>
+        <Field label="Confirm new password" htmlFor="confirm" error={form.errors.confirm}>
+          <input id="confirm" name="confirm" type="password" autoComplete="new-password" className={`field ${form.errors.confirm ? "field-error" : ""}`} value={form.values.confirm} onChange={form.set("confirm")} />
+        </Field>
+        <Button type="submit" className="w-full" loading={form.busy}>{form.busy ? "Updating…" : "Update password"}</Button>
       </form>
     </AuthShell>
   );

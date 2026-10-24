@@ -45,14 +45,17 @@ export function IconButton({ label, className = "", children, ...props }) {
   );
 }
 
-export function Field({ label, error, hint, htmlFor, required, children }) {
+export function Field({ label, error, hint, htmlFor, required, labelExtra, children }) {
   return (
     <div>
       {label && (
-        <label htmlFor={htmlFor} className="mb-1 block text-sm font-medium text-slate-700">
-          {label}
-          {required && <span className="text-red-600" aria-hidden="true"> *</span>}
-        </label>
+        <div className="mb-1 flex items-baseline justify-between gap-2">
+          <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700">
+            {label}
+            {required && <span className="text-red-600" aria-hidden="true"> *</span>}
+          </label>
+          {labelExtra}
+        </div>
       )}
       {children}
       {hint && !error && <p className="mt-1 text-xs text-slate-500">{hint}</p>}

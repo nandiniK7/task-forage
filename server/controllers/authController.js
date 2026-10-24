@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import env from "../config/env.js";
@@ -6,13 +7,16 @@ import Task from "../models/Task.js";
 import Comment from "../models/Comment.js";
 import ApiError from "../utils/ApiError.js";
 import { removeFile } from "../utils/files.js";
+import { passwordResetEmail } from "../services/notifications.js";
 import {
-  validateRegistration, validateLogin, validateProfile, validatePasswordInto,
+  validateRegistration, validateLogin, validateForgotPassword, validateResetPassword, validateProfile, validatePasswordInto,
 } from "../utils/validators.js";
 
 const signToken = (userId) => jwt.sign({ id: String(userId) }, env.jwtSecret, { expiresIn: env.jwtExpiresIn });
 
 const HASH_ROUNDS = 10;
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 hour
+const hashResetToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
 
 export const registerUser = async (req, res) => {
   const { name, email, password } = validateRegistration(req.body);
@@ -39,6 +43,39 @@ export const loginUser = async (req, res) => {
   if (!valid) throw ApiError.unauthorized("Invalid email or password.", { code: "BAD_CREDENTIALS" });
 
   res.json({ success: true, message: "Login successful.", token: signToken(user._id), user });
+};
+
+export const forgotPassword = async (req, res) => {
+  const { email } = validateForgotPassword(req.body);
+  const user = await User.findOne({ email });
+
+  if (user) {
+    const token = crypto.randomBytes(32).toString("hex");
+    user.resetPasswordTokenHash = hashResetToken(token);
+    user.resetPasswordExpires = new Date(Date.now() + RESET_TOKEN_TTL_MS);
+    await user.save();
+    const resetLink = `${env.clientUrl.replace(/\/+$/, "")}/reset-password/${token}`;
+    passwordResetEmail({ user, resetLink });
+  }
+
+  // Same response whether or not the account exists, so this endpoint can't be used to find out who has one.
+  res.json({ success: true, message: "If an account exists for that email, a reset link has been sent." });
+};
+
+export const resetPassword = async (req, res) => {
+  const { token, password } = validateResetPassword(req.body);
+  const user = await User.findOne({ resetPasswordTokenHash: hashResetToken(token), resetPasswordExpires: { $gt: new Date() } });
+
+  if (!user) {
+    throw ApiError.badRequest("This reset link is invalid or has expired.", { errors: { token: "This reset link is invalid or has expired." } });
+  }
+
+  user.password = await bcrypt.hash(password, HASH_ROUNDS);
+  user.resetPasswordTokenHash = null;
+  user.resetPasswordExpires = null;
+  await user.save();
+
+  res.json({ success: true, message: "Password updated. You're signed in.", token: signToken(user._id), user });
 };
 
 export const getCurrentUser = (req, res) => {
@@ -89,7 +126,7 @@ export const deleteAccount = async (req, res) => {
   await Comment.deleteMany({ task: { $in: ownedIds } });
   await Task.deleteMany({ _id: { $in: ownedIds } });
 
-  await Task.updateMany({ assignedTo: user._id }, { $set: { assignedTo: null } });
+  await Task.updateMany({ assignedTo: user._id }, { $pull: { assignedTo: user._id } });
   await Task.updateMany({ "sharedWith.user": user._id }, { $pull: { sharedWith: { user: user._id } } });
   await Comment.updateMany({ author: user._id }, { $set: { author: null } });
   await user.deleteOne();

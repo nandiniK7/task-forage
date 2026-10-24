@@ -48,6 +48,25 @@ export const validateLogin = (body = {}) => {
   return { email, password };
 };
 
+export const validateForgotPassword = (body = {}) => {
+  const errors = {};
+  const email = normalizeEmail(body.email);
+  if (!email) errors.email = "Email is required.";
+  else if (!EMAIL_PATTERN.test(email)) errors.email = "Enter a valid email address.";
+  failIfInvalid(errors);
+  return { email };
+};
+
+export const validateResetPassword = (body = {}) => {
+  const errors = {};
+  const token = isString(body.token) ? body.token.trim() : "";
+  const password = isString(body.password) ? body.password : "";
+  if (!token) errors.token = "Reset link is invalid or expired.";
+  validatePasswordInto(errors, "password", password);
+  failIfInvalid(errors);
+  return { token, password };
+};
+
 export const validateProfile = (body = {}) => {
   const errors = {};
   const update = {};
@@ -72,11 +91,15 @@ export const validateProfile = (body = {}) => {
   return update;
 };
 
+// A new or changed deadline must not be in the past; a small grace period absorbs request latency and clock skew.
+const DEADLINE_GRACE_MS = 60_000;
+
 /**
  * Validates and normalises task fields. With `partial` (updates) only supplied fields are checked.
- * `assignedTo` is returned as an ObjectId string, or null for "unassigned"; existence is checked by the controller.
+ * `assignedTo` is returned as an array of ObjectId strings (possibly empty, meaning "unassigned");
+ * existence of each user is checked by the controller.
  */
-export const validateTaskInput = (body = {}, { partial = false } = {}) => {
+export const validateTaskInput = (body = {}, { partial = false, previousDeadline = undefined } = {}) => {
   const errors = {};
   const data = {};
   const has = (key) => body[key] !== undefined;
@@ -109,7 +132,16 @@ export const validateTaskInput = (body = {}, { partial = false } = {}) => {
       const date = new Date(body.deadline);
       if (Number.isNaN(date.getTime())) errors.deadline = "Deadline is not a valid date.";
       else if (date.getFullYear() < 2000 || date.getFullYear() > 2100) errors.deadline = "Deadline must be between the years 2000 and 2100.";
-      else data.deadline = date;
+      else {
+        // Only reject the past when the deadline is actually being set to a new value, so an
+        // existing overdue task can still be edited (status, title, ...) without re-dating it.
+        const isUnchanged = previousDeadline !== undefined && +new Date(previousDeadline || 0) === +date;
+        if (!isUnchanged && date.getTime() < Date.now() - DEADLINE_GRACE_MS) {
+          errors.deadline = "Deadline cannot be in the past.";
+        } else {
+          data.deadline = date;
+        }
+      }
     }
   }
 
@@ -119,11 +151,20 @@ export const validateTaskInput = (body = {}, { partial = false } = {}) => {
     else data.reminderBefore = hours;
   }
 
+  // A task can be assigned to any number of people ("a team") at once; an empty list means unassigned.
   if (has("assignedTo")) {
-    if (body.assignedTo === null || body.assignedTo === "") data.assignedTo = null;
-    else if (!isString(body.assignedTo) || !mongoose.isValidObjectId(body.assignedTo) || body.assignedTo.length !== 24) {
-      errors.assignedTo = "Assigned user is not valid.";
-    } else data.assignedTo = body.assignedTo;
+    const raw = body.assignedTo;
+    if (raw === null || raw === "" || (Array.isArray(raw) && raw.length === 0)) {
+      data.assignedTo = [];
+    } else {
+      const list = Array.isArray(raw) ? raw : [raw];
+      const isValidId = (id) => isString(id) && mongoose.isValidObjectId(id) && id.length === 24;
+      if (!list.every(isValidId)) {
+        errors.assignedTo = "One or more assignees are not valid.";
+      } else {
+        data.assignedTo = [...new Set(list)];
+      }
+    }
   }
 
   failIfInvalid(errors);

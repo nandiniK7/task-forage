@@ -246,6 +246,9 @@ if (!MONGO) {
       assert.equal((await call("POST", "/api/tasks", { token: alice.token, body: { title: "x", deadline: "not-a-date" } })).status, 400);
       assert.equal((await call("POST", "/api/tasks", { token: alice.token, body: { title: "x", assignedTo: "12345" } })).status, 400);
       assert.equal((await call("POST", "/api/tasks", { token: alice.token, body: { title: "x", assignedTo: new mongoose.Types.ObjectId().toString() } })).status, 400);
+      const past = await call("POST", "/api/tasks", { token: alice.token, body: { title: "x", deadline: new Date(Date.now() - 86400000).toISOString() } });
+      assert.equal(past.status, 400);
+      assert.ok(past.json.errors.deadline);
     });
 
     test("create defaults to self-assignment and shows created/assigned by", async () => {
@@ -256,7 +259,7 @@ if (!MONGO) {
       assert.equal(r.status, 201, JSON.stringify(r.json));
       const t = r.json.task;
       ids.website = t._id;
-      assert.equal(t.assignedTo._id, alice.user._id);
+      assert.equal(t.assignedTo[0]._id, alice.user._id);
       assert.equal(t.assignedBy._id, alice.user._id);
       assert.equal(t.createdBy.name, "Anna");
       assert.equal(t.access, "owner");
@@ -267,21 +270,26 @@ if (!MONGO) {
       inbox.length = 0;
       const r = await call("POST", "/api/tasks", {
         token: alice.token,
-        body: { title: "Prepare quarterly report", description: "Numbers and charts", category: "Work", priority: "Medium", deadline: new Date(Date.now() - 86400000).toISOString(), assignedTo: bob.user._id },
+        body: { title: "Prepare quarterly report", description: "Numbers and charts", category: "Work", priority: "Medium", deadline: new Date(Date.now() + 3600000).toISOString(), assignedTo: bob.user._id },
       });
       assert.equal(r.status, 201);
       ids.report = r.json.task._id;
-      assert.equal(r.json.task.assignedTo.name, "Bobby");
+      assert.equal(r.json.task.assignedTo[0].name, "Bobby");
       assert.equal(r.json.task.assignedBy.name, "Anna");
       assert.equal(r.json.task.createdBy.name, "Anna");
-      assert.equal(r.json.task.isOverdue, true);
+      assert.equal(r.json.task.isOverdue, false);
+
+      // Backdate directly in the database to simulate the deadline having already passed; creating
+      // (or re-dating) a task with a past deadline is rejected by the API itself (see "validation" above).
+      await Task.updateOne({ _id: ids.report }, { $set: { deadline: new Date(Date.now() - 86400000) } });
+      assert.equal((await call("GET", `/api/tasks/${ids.report}`, { token: alice.token })).json.task.isOverdue, true);
 
       assert.ok(await wait(() => inbox.some((m) => m.includes("Task assigned to you"))), "assignment email should arrive");
       assert.ok(inbox.every((m) => !/To:.*anna@/i.test(m)), "actor should not be emailed about their own action");
 
       const un = await call("POST", "/api/tasks", { token: alice.token, body: { title: "Floating task", assignedTo: null, category: "Personal", priority: "Low" } });
       assert.equal(un.status, 201);
-      assert.equal(un.json.task.assignedTo, null);
+      assert.deepEqual(un.json.task.assignedTo, []);
       ids.floating = un.json.task._id;
     });
 
@@ -350,17 +358,26 @@ if (!MONGO) {
       assert.equal(t.priority, "Low");
       assert.equal(t.status, "In Progress");
       assert.equal(t.category, "Projects");
-      assert.equal(t.assignedTo.name, "Bobby");
+      assert.equal(t.assignedTo[0].name, "Bobby");
       assert.equal(t.isOverdue, false);
       assert.ok(await wait(() => inbox.some((m) => /Status changed to In Progress/.test(m))), "status email");
 
       inbox.length = 0;
       const re = await call("PUT", `/api/tasks/${ids.report}`, { token: alice.token, body: { assignedTo: carol.user._id } });
-      assert.equal(re.json.task.assignedTo.name, "Carla");
+      assert.equal(re.json.task.assignedTo[0].name, "Carla");
       assert.equal(re.json.task.assignedBy.name, "Anna");
       assert.ok(await wait(() => inbox.some((m) => /Task assigned to you/.test(m))), "reassignment email");
       const back = await call("PUT", `/api/tasks/${ids.report}`, { token: alice.token, body: { assignedTo: alice.user._id } });
-      assert.equal(back.json.task.assignedTo.name, "Anna");
+      assert.equal(back.json.task.assignedTo[0].name, "Anna");
+
+      // A task can be assigned to several people at once ("a team"), not just one.
+      inbox.length = 0;
+      const team = await call("PUT", `/api/tasks/${ids.report}`, { token: alice.token, body: { assignedTo: [bob.user._id, carol.user._id] } });
+      assert.equal(team.status, 200, JSON.stringify(team.json));
+      assert.deepEqual(team.json.task.assignedTo.map((u) => u.name).sort(), ["Bobby", "Carla"]);
+      assert.ok(await wait(() => inbox.filter((m) => /Task assigned to you/.test(m)).length >= 2), "both new teammates are emailed");
+      const list = await call("GET", "/api/tasks?scope=assigned", { token: carol.token });
+      assert.ok(list.json.tasks.some((task) => task._id === ids.report), "each teammate sees the task under their own assigned scope");
 
       const done = await call("PATCH", `/api/tasks/${ids.report}`, { token: alice.token, body: { status: "Completed" } });
       assert.equal(done.json.task.status, "Completed");
@@ -593,7 +610,7 @@ if (!MONGO) {
       assert.equal(gone.status, 200);
       const after = await call("GET", `/api/tasks/${t.json.task._id}`, { token: owner.token });
       assert.equal(after.status, 200);
-      assert.equal(after.json.task.assignedTo, null);
+      assert.deepEqual(after.json.task.assignedTo, []);
       assert.equal((await call("GET", "/api/auth/me", { token: temp.token })).status, 401);
     });
   });
@@ -624,18 +641,26 @@ if (!MONGO) {
   });
 
   describe("legacy data migration", () => {
-    test("upgrades old comments, attachments and categories", async () => {
+    test("upgrades old comments, attachments, categories and single-user assignment", async () => {
       const u = await register("Legacy");
+      const bob2 = await register("Bobcat");
       const oid = () => new mongoose.Types.ObjectId();
       const commentId = oid();
       const attId = oid();
       const taskId = oid();
+      const scalarAssigneeTaskId = oid();
       await mongoose.connection.collection("tasks").insertOne({
         _id: taskId, title: "Old task", description: "", category: "Project", priority: "High", status: "Pending",
         createdBy: new mongoose.Types.ObjectId(u.user._id), assignedTo: null,
         comments: [{ _id: commentId, text: "old comment", user: new mongoose.Types.ObjectId(u.user._id), parentId: null, createdAt: new Date(), updatedAt: new Date() }],
         attachments: ["legacy-string.txt", { _id: attId, name: "old.txt", type: "text/plain", size: 3, data: Buffer.from("old").toString("base64") }],
         sharedWith: [{ _id: oid(), user: oid(), permission: "view" }],
+        createdAt: new Date(), updatedAt: new Date(),
+      });
+      // Pre-dates the move from a single assignee to a list: assignedTo was a bare ObjectId, not an array.
+      await mongoose.connection.collection("tasks").insertOne({
+        _id: scalarAssigneeTaskId, title: "Old single-assignee task", description: "", category: "Work", priority: "Medium", status: "Pending",
+        createdBy: new mongoose.Types.ObjectId(u.user._id), assignedTo: new mongoose.Types.ObjectId(bob2.user._id),
         createdAt: new Date(), updatedAt: new Date(),
       });
       await migrateLegacyData();
@@ -646,12 +671,17 @@ if (!MONGO) {
       assert.equal(got.json.task.category, "Projects");
       assert.equal(got.json.task.commentCount, 1);
       assert.equal(got.json.task.attachments.length, 1);
+      assert.deepEqual(got.json.task.assignedTo, []);
       const list = await call("GET", "/api/tasks?sort=priority", { token: u.token });
-      assert.equal(list.json.tasks.length, 1);
+      assert.equal(list.json.tasks.length, 2);
       const file = await call("GET", `/api/tasks/${taskId}/attachments/${attId}/download`, { token: u.token, raw: true });
       assert.equal(await file.text(), "old");
       const comments = await call("GET", `/api/tasks/${taskId}/comments`, { token: u.token });
       assert.equal(comments.json.comments[0].text, "old comment");
+
+      const scalarMigrated = await call("GET", `/api/tasks/${scalarAssigneeTaskId}`, { token: u.token });
+      assert.equal(scalarMigrated.json.task.assignedTo.length, 1);
+      assert.equal(scalarMigrated.json.task.assignedTo[0]._id, bob2.user._id);
     });
   });
 }

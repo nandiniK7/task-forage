@@ -6,7 +6,7 @@ import TaskEventsProvider from "./context/TaskEventsProvider";
 import ErrorBoundary from "./components/ui/ErrorBoundary";
 import ProtectedRoute from "./components/ui/ProtectedRoute";
 import AppLayout from "./components/layout/AppLayout";
-import { Login, Register } from "./pages/Auth";
+import { ForgotPassword, Login, Register, ResetPassword } from "./pages/Auth";
 import Tasks from "./pages/Tasks";
 import TaskDetail from "./pages/TaskDetail";
 import Calendar from "./pages/Calendar";
@@ -28,6 +28,8 @@ export default function App() {
               <Routes>
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
+                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/reset-password/:token" element={<ResetPassword />} />
                 <Route element={<ProtectedRoute />}>
                   <Route element={<AppLayout />}>
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />

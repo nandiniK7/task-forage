@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { Check, ChevronDown, Search, UserX } from "lucide-react";
+import { Check, ChevronDown, Plus, Search, UserX, X } from "lucide-react";
 import { usersApi } from "../../api/services";
 import { getErrorMessage, isCancelled } from "../../api/client";
 import { useDebounced } from "../../hooks/hooks";
@@ -7,9 +7,15 @@ import { Avatar, Spinner } from "../ui/primitives";
 
 /**
  * Searchable picker for registered users, backed by GET /users?search=.
- * `value` is a user object ({ _id, name, email }) or null. With `allowUnassigned`, "Unassigned" is offered.
+ *
+ * Single mode (default): `value` is a user object ({ _id, name, email }) or null.
+ * With `allowUnassigned`, "Unassigned" is offered.
+ *
+ * `multiple`: `value` is an array of user objects — lets a task be assigned to several
+ * people at once (a team), not just one. Already-selected people are excluded from the
+ * list and the dropdown stays open so more than one can be picked in a row.
  */
-export default function UserSelect({ id, value, onChange, allowUnassigned = false, excludeIds = [], disabled = false, invalid = false, placeholder = "Select a user" }) {
+export default function UserSelect({ id, value, onChange, allowUnassigned = false, multiple = false, excludeIds = [], disabled = false, invalid = false, placeholder = "Select a user" }) {
   const generatedId = useId();
   const listId = `${generatedId}-list`;
   const rootRef = useRef(null);
@@ -19,7 +25,8 @@ export default function UserSelect({ id, value, onChange, allowUnassigned = fals
   const [result, setResult] = useState({ key: null, users: [], error: "" });
   const [activeIndex, setActiveIndex] = useState(0);
   const debouncedQuery = useDebounced(query, 250);
-  const excludeKey = excludeIds.join(",");
+  const selectedIds = multiple ? (value ?? []).map((user) => user._id) : [];
+  const excludeKey = [...excludeIds, ...selectedIds].join(",");
   const requestKey = `${debouncedQuery}|${excludeKey}`;
   const { users, error } = result;
   const loading = open && result.key !== requestKey;
@@ -51,13 +58,22 @@ export default function UserSelect({ id, value, onChange, allowUnassigned = fals
 
   useEffect(() => { if (open) inputRef.current?.focus(); }, [open]);
 
-  const options = [...(allowUnassigned && !query.trim() ? [{ _id: null, name: "Unassigned" }] : []), ...users];
+  const options = [...(allowUnassigned && !multiple && !query.trim() ? [{ _id: null, name: "Unassigned" }] : []), ...users];
 
   const choose = (option) => {
+    if (multiple) {
+      const next = [...(value ?? []), { _id: option._id, name: option.name, email: option.email }];
+      onChange(next);
+      setQuery("");
+      inputRef.current?.focus();
+      return;
+    }
     onChange(option._id ? { _id: option._id, name: option.name, email: option.email } : null);
     setOpen(false);
     setQuery("");
   };
+
+  const remove = (userId) => onChange((value ?? []).filter((user) => user._id !== userId));
 
   const onKeyDown = (event) => {
     if (event.key === "ArrowDown") { event.preventDefault(); setActiveIndex((index) => Math.min(index + 1, options.length - 1)); }
@@ -68,22 +84,48 @@ export default function UserSelect({ id, value, onChange, allowUnassigned = fals
 
   return (
     <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        id={id}
-        disabled={disabled}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        aria-controls={listId}
-        onClick={() => setOpen((current) => !current)}
-        className={`field flex items-center justify-between gap-2 text-left ${invalid ? "field-error" : ""}`}
-      >
-        <span className="flex min-w-0 items-center gap-2">
-          {value ? <Avatar name={value.name || value.email} size="sm" /> : <UserX size={16} className="text-slate-400" aria-hidden="true" />}
-          <span className={`truncate ${value ? "text-slate-900" : "text-slate-500"}`}>{value ? (value.name || value.email) : (allowUnassigned ? "Unassigned" : placeholder)}</span>
-        </span>
-        <ChevronDown size={16} className="shrink-0 text-slate-500" aria-hidden="true" />
-      </button>
+      {multiple ? (
+        <div className={`field flex flex-wrap items-center gap-1.5 ${invalid ? "field-error" : ""} ${disabled ? "pointer-events-none opacity-60" : ""}`}>
+          {(value ?? []).length === 0 && <span className="mr-auto text-slate-500">{placeholder}</span>}
+          {(value ?? []).map((user) => (
+            <span key={user._id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-brand-50 py-0.5 pl-1 pr-1 text-xs font-medium text-brand-700">
+              <Avatar name={user.name || user.email} size="sm" />
+              <span className="max-w-[9rem] truncate">{user.name || user.email}</span>
+              <button type="button" aria-label={`Remove ${user.name || user.email}`} onClick={() => remove(user._id)} className="rounded-full p-0.5 hover:bg-brand-100">
+                <X size={12} aria-hidden="true" />
+              </button>
+            </span>
+          ))}
+          <button
+            type="button"
+            id={id}
+            aria-haspopup="listbox"
+            aria-expanded={open}
+            aria-controls={listId}
+            onClick={() => setOpen((current) => !current)}
+            className="ml-auto inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-brand-700 hover:bg-brand-50"
+          >
+            <Plus size={14} aria-hidden="true" /> Add
+          </button>
+        </div>
+      ) : (
+        <button
+          type="button"
+          id={id}
+          disabled={disabled}
+          aria-haspopup="listbox"
+          aria-expanded={open}
+          aria-controls={listId}
+          onClick={() => setOpen((current) => !current)}
+          className={`field flex items-center justify-between gap-2 text-left ${invalid ? "field-error" : ""}`}
+        >
+          <span className="flex min-w-0 items-center gap-2">
+            {value ? <Avatar name={value.name || value.email} size="sm" /> : <UserX size={16} className="text-slate-400" aria-hidden="true" />}
+            <span className={`truncate ${value ? "text-slate-900" : "text-slate-500"}`}>{value ? (value.name || value.email) : (allowUnassigned ? "Unassigned" : placeholder)}</span>
+          </span>
+          <ChevronDown size={16} className="shrink-0 text-slate-500" aria-hidden="true" />
+        </button>
+      )}
 
       {open && (
         <div className="absolute z-30 mt-1 w-full min-w-[16rem] rounded-lg border border-slate-200 bg-white shadow-lg">
@@ -105,7 +147,7 @@ export default function UserSelect({ id, value, onChange, allowUnassigned = fals
             {error && <li className="px-3 py-2 text-sm text-red-600">{error}</li>}
             {!error && !loading && options.length === 0 && <li className="px-3 py-2 text-sm text-slate-500">No registered users found.</li>}
             {options.map((option, index) => {
-              const selected = (value?._id ?? null) === option._id;
+              const selected = multiple ? false : (value?._id ?? null) === option._id;
               return (
                 <li
                   key={option._id ?? "unassigned"}

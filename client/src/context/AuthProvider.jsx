@@ -42,6 +42,7 @@ export default function AuthProvider({ children }) {
 
   const login = useCallback(async (credentials) => startSession(await authApi.login(credentials)), [startSession]);
   const register = useCallback(async (details) => startSession(await authApi.register(details)), [startSession]);
+  const resetPassword = useCallback(async (payload) => startSession(await authApi.resetPassword(payload)), [startSession]);
 
   const logout = useCallback(() => {
     tokenStore.clear();
@@ -50,8 +51,8 @@ export default function AuthProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ user, setUser, initializing, sessionExpired, login, register, logout }),
-    [user, initializing, sessionExpired, login, register, logout]
+    () => ({ user, setUser, initializing, sessionExpired, login, register, resetPassword, logout }),
+    [user, initializing, sessionExpired, login, register, resetPassword, logout]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

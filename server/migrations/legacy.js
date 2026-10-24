@@ -19,6 +19,11 @@ export const migrateLegacyData = async () => {
 
     await tasks.updateMany({ category: "Project" }, { $set: { category: "Projects" } });
     await tasks.updateMany({ reminderBefore: { $exists: false } }, { $set: { reminderBefore: DEFAULT_REMINDER_HOURS } });
+
+    // assignedTo became a list (a task can be assigned to a team, not just one person):
+    // wrap a single-user value in an array, and turn "unassigned" (null/missing) into an empty array.
+    await tasks.updateMany({ assignedTo: { $type: "objectId" } }, [{ $set: { assignedTo: ["$assignedTo"] } }]);
+    await tasks.updateMany({ $or: [{ assignedTo: null }, { assignedTo: { $exists: false } }] }, { $set: { assignedTo: [] } });
     for (const [priority, rank] of Object.entries(PRIORITY_RANK)) {
       await tasks.updateMany({ priority, priorityRank: { $ne: rank } }, { $set: { priorityRank: rank } });
     }

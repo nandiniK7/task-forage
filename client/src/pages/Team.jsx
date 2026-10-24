@@ -32,7 +32,7 @@ export default function Team() {
                       <p className="truncate text-sm font-semibold text-slate-900">{member.name}{member.isMe && <span className="ml-2 rounded-full bg-brand-100 px-2 py-0.5 text-xs font-medium text-brand-700">You</span>}</p>
                       <p className="truncate text-xs text-slate-600">{member.email}</p>
                     </div>
-                    <Button size="sm" variant="secondary" onClick={() => openCreate({ assignedTo: { _id: member._id, name: member.name, email: member.email } })}>
+                    <Button size="sm" variant="secondary" onClick={() => openCreate({ assignedTo: [{ _id: member._id, name: member.name, email: member.email }] })}>
                       <UserPlus size={14} /> <span className="hidden sm:inline">Assign a task</span><span className="sm:hidden">Assign</span>
                     </Button>
                   </li>

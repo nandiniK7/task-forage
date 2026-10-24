@@ -1,7 +1,7 @@
 import { Link } from "react-router-dom";
 import { OVERDUE_STYLE } from "../../lib/theme";
 import { DeadlineLabel, PriorityBadge, StatusBadge } from "../tasks/badges";
-import { personName } from "../../lib/format";
+import { assigneeNames } from "../../lib/format";
 
 export default function TaskMiniList({ title, tasks, emptyText, tone, testId, action }) {
   return (
@@ -22,7 +22,7 @@ export default function TaskMiniList({ title, tasks, emptyText, tone, testId, ac
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-600">
                   <DeadlineLabel task={task} />
                   <PriorityBadge priority={task.priority} />
-                  <span>→ {personName(task.assignedTo, "Unassigned")}</span>
+                  <span>→ {assigneeNames(task.assignedTo)}</span>
                 </div>
               </Link>
             </li>

@@ -12,7 +12,8 @@ export const getAccess = (task, userId) => {
   if (!id) return null;
   if (idOf(task.createdBy) === id) return "owner";
   const share = (task.sharedWith ?? []).find((item) => idOf(item.user) === id);
-  if (idOf(task.assignedTo) === id || share?.permission === "edit") return "edit";
+  const isAssignee = (task.assignedTo ?? []).some((assignee) => idOf(assignee) === id);
+  if (isAssignee || share?.permission === "edit") return "edit";
   if (share) return "view";
   return null;
 };

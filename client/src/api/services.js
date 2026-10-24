@@ -5,6 +5,8 @@ const data = (response) => response.data;
 export const authApi = {
   register: (payload) => api.post("/auth/register", payload).then(data),
   login: (payload) => api.post("/auth/login", payload).then(data),
+  forgotPassword: (email) => api.post("/auth/forgot-password", { email }).then(data),
+  resetPassword: (payload) => api.post("/auth/reset-password", payload).then(data),
   me: (signal) => api.get("/auth/me", { signal }).then(data),
   updateProfile: (payload) => api.put("/auth/profile", payload).then(data),
   changePassword: (payload) => api.put("/auth/password", payload).then(data),

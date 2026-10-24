@@ -26,7 +26,7 @@ export const toTaskDto = (task, viewerId, { commentCount = 0 } = {}) => {
     reminderBefore: t.reminderBefore,
     isOverdue: isOverdue(t),
     createdBy: userDto(t.createdBy),
-    assignedTo: userDto(t.assignedTo),
+    assignedTo: (t.assignedTo ?? []).map(userDto).filter(Boolean),
     assignedBy: userDto(t.assignedBy ?? t.createdBy),
     sharedWith: (t.sharedWith ?? [])
       .map((share) => ({ user: userDto(share.user), permission: share.permission, sharedAt: share.sharedAt }))

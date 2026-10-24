@@ -8,7 +8,7 @@ import { StatusBadge, PriorityBadge } from "../components/tasks/badges";
 import TaskMiniList from "../components/dashboard/TaskMiniList";
 import { STATUSES } from "../lib/constants";
 import { OVERDUE_STYLE, STATUS_STYLES, statusStyle } from "../lib/theme";
-import { formatTime, personName, sameDay } from "../lib/format";
+import { assigneeNames, formatTime, sameDay } from "../lib/format";
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const monthTitle = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" });
@@ -134,7 +134,7 @@ export default function Calendar() {
                     {task.isOverdue && <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${OVERDUE_STYLE.badge}`}>Overdue</span>}
                     <PriorityBadge priority={task.priority} />
                   </div>
-                  <p className="mt-2 text-xs text-slate-700">Due {formatTime(task.deadline)} · Assigned to {personName(task.assignedTo, "nobody")}</p>
+                  <p className="mt-2 text-xs text-slate-700">Due {formatTime(task.deadline)} · Assigned to {assigneeNames(task.assignedTo, "nobody")}</p>
                 </li>
               ))}
             </ul>
